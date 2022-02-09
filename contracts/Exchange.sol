@@ -54,6 +54,30 @@ contract Exchange is ERC20 {
     }
 
     /**
+     * - Devuelve el ether y el token que le corresponde proporcionalmente a
+     * lo que quiero sacar
+     * -  _amount es la cantidad de LPTokens
+     * - transfiere el ether y token correspondiente al sender
+     * - quema los tokens que el sender manda
+     */
+    function removeLiquidity(uint256 _amount)
+        public
+        returns (uint256, uint256)
+    {
+        require(_amount > 0, "Invalid amount");
+
+        uint256 ethAmount = (address(this).balance * _amount) / totalSupply();
+        uint256 tokenAmount = (getReserve() * _amount) / totalSupply();
+
+        _burn(msg.sender, _amount);
+
+        payable(msg.sender).transfer(ethAmount);
+        IERC20(tokenAddress).transfer(msg.sender, tokenAmount);
+
+        return (ethAmount, tokenAmount);
+    }
+
+    /**
      * Obtiene el balance de tokenAddress del exchange
      */
     function getReserve() public view returns (uint256) {
@@ -80,9 +104,15 @@ contract Exchange is ERC20 {
         uint256 outputReserve
     ) private pure returns (uint256) {
         require(inputReserve > 0 && outputReserve > 0, "No Reserves");
-        uint256 outputAmount = (inputAmount * outputReserve) /
-            (inputReserve + inputAmount);
-        return (outputAmount);
+        // uint256 outputAmount = (inputAmount * outputReserve) /
+        //     (inputReserve + inputAmount);
+
+        uint256 fee = 99; // todo: poder cambiar con governance
+        uint256 inputAmountWithFee = inputAmount * fee;
+        uint256 numerator = inputAmountWithFee * outputReserve;
+        uint256 denominator = (inputReserve * 100) + inputAmountWithFee;
+
+        return (numerator / denominator);
     }
 
     /**

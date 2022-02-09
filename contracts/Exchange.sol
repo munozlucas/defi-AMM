@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
  * Permite agregar liquidez de ether y token
@@ -9,10 +10,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * Tecnicamente es una pool de 2 activos
  * // todo: pensar funcionalidad para obtener el precio
  */
-contract Exchange {
+contract Exchange is ERC20 {
     address public tokenAddress;
 
-    constructor(address _token) {
+    constructor(address _token) ERC20("LP Token", "LP") {
         require(_token != address(0), "Invalid address");
         tokenAddress = _token;
     }
@@ -22,11 +23,34 @@ contract Exchange {
      * la cantidad _tokenAmount de tokenAddress.
      * - Para agregar liquidity se debe enviar : Ether y Token
      * - Se necesita pre aprobar la transacción
+     * - LPtokens: voy a recibir x lptokens proporcional a la cantidad
+     *             myLPTokens = totalLPTokens * (ethDeposited / ethReserve)
+     * de ether depositado
      */
-    function addLiquidity(uint256 _tokenAmount) public payable {
-        IERC20 token = IERC20(tokenAddress);
+    function addLiquidity(uint256 _tokenAmount)
+        public
+        payable
+        returns (uint256)
+    {
+        uint256 tokenReserve = getReserve();
+        uint256 mintLPTokens;
+        if (totalSupply() == 0) {
+            mintLPTokens = address(this).balance;
+        } else {
+            uint256 ethReserve = address(this).balance - msg.value;
+            uint256 correctTokenAmount = (msg.value * tokenReserve) /
+                ethReserve;
+            require(_tokenAmount >= correctTokenAmount, "No enough tokens");
+            mintLPTokens = totalSupply() * (msg.value / ethReserve);
+        }
+        IERC20(tokenAddress).transferFrom(
+            msg.sender,
+            address(this),
+            _tokenAmount
+        );
+        _mint(msg.sender, mintLPTokens);
 
-        token.transferFrom(msg.sender, address(this), _tokenAmount);
+        return mintLPTokens;
     }
 
     /**
@@ -97,6 +121,7 @@ contract Exchange {
 
     /**
      * Función para vender token y comprar ether
+     * Se necesita pre aprobar
      */
     function tokenToEthSwap(uint256 _tokensSold, uint256 _minEth) public {
         uint256 tokenReserve = getReserve();

@@ -80,4 +80,37 @@ contract Exchange {
         uint256 tokenReserve = getReserve();
         return _getAmount(_tokenSold, tokenReserve, address(this).balance);
     }
+
+    /**
+     * Función para vender ether y comprar tokens
+     */
+    function ethToTokenSwap(uint256 _minTokens) public payable {
+        uint256 tokenReserve = getReserve();
+        uint256 tokensBought = _getAmount(
+            msg.value,
+            address(this).balance - msg.value, // importante hacer la resta
+            tokenReserve
+        );
+        require(tokensBought >= _minTokens, "Not enough tokens to sell");
+        IERC20(tokenAddress).transfer(msg.sender, tokensBought);
+    }
+
+    /**
+     * Función para vender token y comprar ether
+     */
+    function tokenToEthSwap(uint256 _tokensSold, uint256 _minEth) public {
+        uint256 tokenReserve = getReserve();
+        uint256 etherBought = _getAmount(
+            _tokensSold,
+            tokenReserve,
+            address(this).balance
+        );
+        require(etherBought >= _minEth, "Not enough ether to sell");
+        IERC20(tokenAddress).transferFrom(
+            msg.sender,
+            address(this),
+            _tokensSold
+        );
+        payable(msg.sender).transfer(etherBought);
+    }
 }
